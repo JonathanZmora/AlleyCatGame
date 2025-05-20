@@ -26,6 +26,12 @@ namespace AlleyCatGame
 			std::cerr << "IMG_LoadTexture Error: " << SDL_GetError() << "\n";
 			return false;
 		}
+		// Load cat sprite sheet
+		catTex = IMG_LoadTexture(ren, "res/cat.png");
+		if (!catTex) {
+			std::cerr << "IMG_LoadTexture(cat) Error: " << SDL_GetError() << "\n";
+			return false;
+		}
 		return true;
 	}
 
@@ -46,40 +52,36 @@ namespace AlleyCatGame
 		);
 	}
 
+	void AlleyCat::createCatEntity() {
+		// Box2D body
+		b2BodyDef bd = b2DefaultBodyDef();
+		bd.type = b2_dynamicBody;
+		bd.position = {10.0f/BOX_SCALE, WIN_HEIGHT / BOX_SCALE - 1.0f};
+		auto body = b2CreateBody(boxWorld, &bd);
+		b2ShapeDef sd = b2DefaultShapeDef(); sd.density=1; sd.material.friction=0.3f;
+		SDL_FPoint size{64, 64};
+		// half-extents in meters:
+		float halfW = (size.x * 0.5f) / BOX_SCALE;  // 32px → 3.2 m
+		float halfH = (size.y * 0.5f) / BOX_SCALE;  // 32px → 3.2 m
 
-	void AlleyCat::createCatEntity()
-	{
-		// Create Box2D dynamic body
-		b2BodyDef bodyDef = b2DefaultBodyDef();
-		bodyDef.type = b2_dynamicBody;
-		bodyDef.position = {
-			(WIN_WIDTH / 2.0f) / BOX_SCALE,
-			(WIN_HEIGHT / 2.0f) / BOX_SCALE
-		};
+		b2Polygon box = b2MakeBox(halfW, halfH);
+		b2CreatePolygonShape(body, &sd, &box);
 
-		b2ShapeDef shapeDef = b2DefaultShapeDef();
-		shapeDef.density = 1.0f;
-		shapeDef.material.friction = 0.3f;
-		shapeDef.material.restitution = 0.0f;
+		// ECS entity
+		Entity cat = Entity::create();
+		// first frame of sprite sheet
+		SDL_FRect part{6, 44, 26, 20};
 
-		b2Polygon box = b2MakeBox(
-			25.0f / BOX_SCALE, 25.0f / BOX_SCALE); // half-extents = 50x50 box
-
-		b2BodyId body = b2CreateBody(boxWorld, &bodyDef);
-		b2CreatePolygonShape(body, &shapeDef, &box);
-
-		// Create ECS entity
-		Entity freddy = Entity::create();
-		freddy.addAll(
-			Transform{{WIN_WIDTH / 2.0f, WIN_HEIGHT / 2.0f}, 0},
-			Drawable{{}, {50, 50}},
+		SDL_FPoint pos{WIN_WIDTH/2.f - size.x/2.f, WIN_HEIGHT/2.f - size.y/2.f};
+		cat.addAll(
+			Transform{pos,0},
+			Drawable{part,size},
 			Intent{},
 			Collider{body}
 		);
-
-		// Link Box2D body back to ECS entity (optional)
-		b2Body_SetUserData(body, new ent_type{freddy.entity()});
+		b2Body_SetUserData(body, new ent_type{cat.entity()});
 	}
+
 
 	void AlleyCat::createWalls()
 	{
@@ -89,18 +91,18 @@ namespace AlleyCatGame
 		shapeDef.density = 1.0f;
 		b2Polygon box;
 
-		bodyDef.position = {WIN_WIDTH / 2.0f / BOX_SCALE, WIN_HEIGHT / BOX_SCALE - 10.0f};
+		bodyDef.position = {WIN_WIDTH / 2.0f / BOX_SCALE, WIN_HEIGHT / BOX_SCALE - 1.0f};
 		box = b2MakeBox(WIN_WIDTH / 2.0f / BOX_SCALE, 10.0f / BOX_SCALE);
 		b2BodyId ground = b2CreateBody(boxWorld, &bodyDef);
 		b2CreatePolygonShape(ground, &shapeDef, &box);
 
 		box = b2MakeBox(5, WIN_HEIGHT/2.0f/BOX_SCALE);
 
-		bodyDef.position = {-5,WIN_HEIGHT/2.0f/BOX_SCALE};
+		bodyDef.position = {-5.5f ,WIN_HEIGHT/2.0f/BOX_SCALE};
 		b2BodyId left = b2CreateBody(boxWorld, &bodyDef);
 		b2CreatePolygonShape(left, &shapeDef, &box);
 
-		bodyDef.position = {WIN_WIDTH/BOX_SCALE +5, WIN_HEIGHT/2.0f/BOX_SCALE};
+		bodyDef.position = {WIN_WIDTH/BOX_SCALE + 4.5f, WIN_HEIGHT/2.0f/BOX_SCALE};
 		b2BodyId right = b2CreateBody(boxWorld, &bodyDef);
 		b2CreatePolygonShape(right, &shapeDef, &box);
 	}
@@ -121,8 +123,8 @@ namespace AlleyCatGame
 				auto& t = World::getComponent<Transform>(e);
 
 				b2Transform boxTransform = b2Body_GetTransform(col.body);
-				t.position.x = boxTransform.p.x * BOX_SCALE;
-				t.position.y = boxTransform.p.y * BOX_SCALE;
+				t.p.x = boxTransform.p.x * BOX_SCALE;
+				t.p.y = boxTransform.p.y * BOX_SCALE;
 				t.angle = b2Rot_GetAngle(boxTransform.q); // (optional rotation)
 			}
 		}
@@ -141,11 +143,12 @@ namespace AlleyCatGame
 				auto& intent = World::getComponent<Intent>(e);
 				intent.left = keys[SDL_SCANCODE_LEFT];
 				intent.right = keys[SDL_SCANCODE_RIGHT];
+				intent.up    = keys[SDL_SCANCODE_UP];
 			}
 		}
 	}
 
-	void AlleyCat::moveSystem(float deltaTime)
+	void AlleyCat::moveSystem()
 	{
 		static const Mask mask = MaskBuilder()
 	   .set<Intent>()
@@ -158,44 +161,46 @@ namespace AlleyCatGame
 				const auto& col = World::getComponent<Collider>(e);
 
 				b2Vec2 velocity = b2Body_GetLinearVelocity(col.body);
-				float speed = 7.0f;
+				constexpr float speed     = DESIRED_PX_SPEED / BOX_SCALE;
+				constexpr float jumpSpeed = std::sqrt(2*9.8f*(DESIRED_PX_JUMP/BOX_SCALE));
+				constexpr float groundThreshold = 0.01f;
 
 				velocity.x = 0;
 				if (intent.left) velocity.x = -speed;
 				if (intent.right) velocity.x = speed;
+				if (intent.up && std::fabs(velocity.y) < groundThreshold) {
+					velocity.y = -jumpSpeed;
+					b2Body_SetLinearVelocity(col.body, velocity);// negative = up against gravity
+				}
 
 				b2Body_SetLinearVelocity(col.body, velocity);
 			}
 		}
 	}
-
-	void AlleyCat::drawSystem()
-	{
+	void AlleyCat::drawSystem() {
+		// Draw background
 		SDL_RenderClear(ren);
+		SDL_RenderTexture(ren, bgTex, nullptr, nullptr);
 
-		static const Mask mask = MaskBuilder()
+		// Draw all physics-driven entities (cat, etc.)
+		static const Mask entityMask = MaskBuilder()
 			.set<Transform>()
 			.set<Drawable>()
+			.set<Collider>()
 			.build();
 
 		for (ent_type e{0}; e.id <= World::maxId().id; ++e.id) {
-			if (World::mask(e).test(mask)) {
-				const auto& t = World::getComponent<Transform>(e);
-				const auto& d = World::getComponent<Drawable>(e);
+			if (!World::mask(e).test(entityMask)) continue;
+			const auto& t = World::getComponent<Transform>(e);
+			const auto& d = World::getComponent<Drawable>(e);
 
-				SDL_FRect rect = {
-					t.position.x,
-					t.position.y,
-					d.size.x,
-					d.size.y
-				};
-
-				SDL_RenderTexture(ren, bgTex, &d.part, &rect);
-			}
+			SDL_FRect dst{ t.p.x, t.p.y, d.size.x, d.size.y };
+			SDL_RenderTexture(ren, catTex, &d.part, &dst);
 		}
 
 		SDL_RenderPresent(ren);
 	}
+
 
 	bool AlleyCat::valid() const
 	{
@@ -217,11 +222,11 @@ namespace AlleyCatGame
     {
     	if (b2World_IsValid(boxWorld))
     		b2DestroyWorld(boxWorld);
-    	if (tex != nullptr)
+    	if (tex)
     		SDL_DestroyTexture(tex);
-    	if (ren != nullptr)
+    	if (ren)
     		SDL_DestroyRenderer(ren);
-    	if (win != nullptr)
+    	if (win)
     		SDL_DestroyWindow(win);
 		if (bgTex)
 			SDL_DestroyTexture(bgTex);
@@ -247,7 +252,7 @@ namespace AlleyCatGame
 			}
 
 			inputSystem();
-			moveSystem(deltaTime);
+			moveSystem();
 			boxSystem(deltaTime);
 			drawSystem();
 
