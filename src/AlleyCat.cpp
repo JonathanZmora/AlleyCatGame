@@ -52,6 +52,29 @@ namespace AlleyCatGame
 		);
 	}
 
+	void AlleyCat::createCanPlatforms() {
+		b2ShapeDef sd = b2DefaultShapeDef();
+		sd.density           = 1.0f;
+		sd.material.friction = 1.0f;
+
+		// 60px wide, 10px tall platforms:
+		constexpr float Wpx = 100.f, Hpx = 5.f;
+		float halfW = (Wpx * 0.5f) / BOX_SCALE;   // in meters
+		float halfH = (Hpx * 0.5f) / BOX_SCALE;
+
+		for (auto& c : canCenters) {
+			// Place the *center* of the body so that its top edge = c.y
+			float bodyCenterYPx = c.y + halfH * BOX_SCALE;
+			b2BodyDef bd = b2DefaultBodyDef();
+			bd.type     = b2_staticBody;
+			bd.position = { c.x/BOX_SCALE, bodyCenterYPx/BOX_SCALE };
+			b2BodyId body = b2CreateBody(boxWorld, &bd);
+
+			b2Polygon plat = b2MakeBox(halfW, halfH);
+			b2CreatePolygonShape(body, &sd, &plat);
+		}
+	}
+
 	void AlleyCat::createCatEntity() {
 		// Box2D body
 		b2BodyDef bd = b2DefaultBodyDef();
@@ -194,7 +217,12 @@ namespace AlleyCatGame
 			const auto& t = World::getComponent<Transform>(e);
 			const auto& d = World::getComponent<Drawable>(e);
 
-			SDL_FRect dst{ t.p.x, t.p.y, d.size.x, d.size.y };
+			SDL_FRect dst{
+				t.p.x ,
+				t.p.y,
+				d.size.x,
+				d.size.y
+			};
 			SDL_RenderTexture(ren, catTex, &d.part, &dst);
 		}
 
@@ -215,6 +243,7 @@ namespace AlleyCatGame
 		prepareBoxWorld();
 		createWalls();
 		createBackgroundEntity();
+		createCanPlatforms();
 		createCatEntity();
 	}
 

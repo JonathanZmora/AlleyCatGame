@@ -25,7 +25,7 @@ namespace AlleyCatGame {
         void createCatEntity();
         void createBackgroundEntity();
         void createWalls();
-
+        void createCanPlatforms ();
         void inputSystem();
         void moveSystem();
         void drawSystem();
@@ -47,5 +47,13 @@ namespace AlleyCatGame {
         static constexpr float BOX_SCALE = 64.0f;  // 1 m = 64 px
         static constexpr float DESIRED_PX_SPEED = 200.0f;
         static constexpr float DESIRED_PX_JUMP  = 150.0f;
+        static constexpr SDL_FPoint canCenters[] = {
+            {260.f, 610.f},
+            {420.f, 635.f},
+            {900.f, 600.f},
+            {1070.f, 626.f},
+            {1220.f, 610.f}
+        };
+
     };
 }
