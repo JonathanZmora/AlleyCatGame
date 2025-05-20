@@ -5,7 +5,7 @@
 
 namespace AlleyCatGame {
 
-    using Transform = struct { SDL_FPoint position; float angle; };
+    using Transform = struct { SDL_FPoint p; float angle; };
     using Drawable = struct { SDL_FRect part; SDL_FPoint size; };
     using Intent = struct { bool left, right; };
     using Collider = struct { b2BodyId body; };
@@ -32,9 +32,11 @@ namespace AlleyCatGame {
         void boxSystem(float deltaTime);
 
         SDL_Texture* bgTex;
+        SDL_Texture* catTex;
         SDL_Texture* tex;
         SDL_Renderer* ren;
         SDL_Window* win;
+
 
         b2WorldId boxWorld = b2_nullWorldId;
 

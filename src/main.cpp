@@ -1,6 +1,6 @@
 #include "AlleyCat.h"
 
-int main(int argc, char** argv)
+int main()
 {
     AlleyCatGame::AlleyCat game;
     if (!game.valid())
