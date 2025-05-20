@@ -4,6 +4,12 @@
 #include <box2d/box2d.h>
 
 namespace AlleyCatGame {
+
+    using Transform = struct { SDL_FPoint position; float angle; };
+    using Drawable = struct { SDL_FRect part; SDL_FPoint size; };
+    using Intent = struct { bool left, right; };
+    using Collider = struct { b2BodyId body; };
+
     class AlleyCat
     {
     public:
@@ -16,7 +22,16 @@ namespace AlleyCatGame {
     private:
         bool prepareWindowAndTexture();
         void prepareBoxWorld();
+        void createCatEntity();
+        void createBackgroundEntity();
+        void createWalls();
 
+        void inputSystem();
+        void moveSystem(float deltaTime);
+        void drawSystem();
+        void boxSystem(float deltaTime);
+
+        SDL_Texture* bgTex;
         SDL_Texture* tex;
         SDL_Renderer* ren;
         SDL_Window* win;
@@ -27,5 +42,6 @@ namespace AlleyCatGame {
         static constexpr int    WIN_HEIGHT = 800;
         static constexpr int	FPS = 60;
         static constexpr float	GAME_FRAME = 1000.f/FPS;
+        static constexpr float  BOX_SCALE = 10.0f;
     };
 }

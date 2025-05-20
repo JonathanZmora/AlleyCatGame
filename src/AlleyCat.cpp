@@ -5,47 +5,196 @@
 #include <iostream>
 
 using namespace std;
+using namespace bagel;
 
 namespace AlleyCatGame
 {
 	bool AlleyCat::prepareWindowAndTexture()
 	{
-		if (!SDL_Init(SDL_INIT_VIDEO))
-		{
-			cout << SDL_GetError() << endl;
+		if (!SDL_Init(SDL_INIT_VIDEO)) {
+			std::cerr << "SDL_Init Error: " << SDL_GetError() << "\n";
+			return false;
+		}
+		if (!SDL_CreateWindowAndRenderer("Alley Cat", WIN_WIDTH, WIN_HEIGHT, 0, &win, &ren)) {
+			std::cerr << "SDL_CreateWindowAndRenderer Error: " << SDL_GetError() << "\n";
 			return false;
 		}
 
-		if (!SDL_CreateWindowAndRenderer("Alley Cat", WIN_WIDTH, WIN_HEIGHT, 0, &win, &ren))
-		{
-			cout << SDL_GetError() << endl;
+		// Load background texture
+		bgTex = IMG_LoadTexture(ren, "res/cat_bg.png");
+		if (!bgTex) {
+			std::cerr << "IMG_LoadTexture Error: " << SDL_GetError() << "\n";
 			return false;
 		}
-
-		/*SDL_Surface *surf = IMG_Load("resources/alleycat.png");
-		if (surf == nullptr)
-		{
-			cout << SDL_GetError() << endl;
-			return false;
-		}
-
-		tex = SDL_CreateTextureFromSurface(ren, surf);
-		if (tex == nullptr)
-		{
-			cout << SDL_GetError() << endl;
-			return false;
-		}
-
-		SDL_DestroySurface(surf);*/
-
 		return true;
 	}
 
 	void AlleyCat::prepareBoxWorld()
 	{
 		b2WorldDef worldDef = b2DefaultWorldDef();
-		worldDef.gravity = {0,0};
+		worldDef.gravity = {0.0f, 9.8f};
 		boxWorld = b2CreateWorld(&worldDef);
+	}
+
+	void AlleyCat::createBackgroundEntity()
+	{
+		auto e = Entity::create();
+		SDL_FRect full{0.0f, 0.0f, static_cast<float>(WIN_WIDTH), static_cast<float>(WIN_HEIGHT)};
+		e.addAll(
+			Transform{{0.0f, 0.0f}, 0.0f},
+			Drawable{full, {full.w, full.h}}
+		);
+	}
+
+
+	void AlleyCat::createCatEntity()
+	{
+		// Create Box2D dynamic body
+		b2BodyDef bodyDef = b2DefaultBodyDef();
+		bodyDef.type = b2_dynamicBody;
+		bodyDef.position = {
+			(WIN_WIDTH / 2.0f) / BOX_SCALE,
+			(WIN_HEIGHT / 2.0f) / BOX_SCALE
+		};
+
+		b2ShapeDef shapeDef = b2DefaultShapeDef();
+		shapeDef.density = 1.0f;
+		shapeDef.material.friction = 0.3f;
+		shapeDef.material.restitution = 0.0f;
+
+		b2Polygon box = b2MakeBox(
+			25.0f / BOX_SCALE, 25.0f / BOX_SCALE); // half-extents = 50x50 box
+
+		b2BodyId body = b2CreateBody(boxWorld, &bodyDef);
+		b2CreatePolygonShape(body, &shapeDef, &box);
+
+		// Create ECS entity
+		Entity freddy = Entity::create();
+		freddy.addAll(
+			Transform{{WIN_WIDTH / 2.0f, WIN_HEIGHT / 2.0f}, 0},
+			Drawable{{}, {50, 50}},
+			Intent{},
+			Collider{body}
+		);
+
+		// Link Box2D body back to ECS entity (optional)
+		b2Body_SetUserData(body, new ent_type{freddy.entity()});
+	}
+
+	void AlleyCat::createWalls()
+	{
+		b2BodyDef bodyDef = b2DefaultBodyDef();
+		bodyDef.type = b2_staticBody;
+		b2ShapeDef shapeDef = b2DefaultShapeDef();
+		shapeDef.density = 1.0f;
+		b2Polygon box;
+
+		bodyDef.position = {WIN_WIDTH / 2.0f / BOX_SCALE, WIN_HEIGHT / BOX_SCALE - 10.0f};
+		box = b2MakeBox(WIN_WIDTH / 2.0f / BOX_SCALE, 10.0f / BOX_SCALE);
+		b2BodyId ground = b2CreateBody(boxWorld, &bodyDef);
+		b2CreatePolygonShape(ground, &shapeDef, &box);
+
+		box = b2MakeBox(5, WIN_HEIGHT/2.0f/BOX_SCALE);
+
+		bodyDef.position = {-5,WIN_HEIGHT/2.0f/BOX_SCALE};
+		b2BodyId left = b2CreateBody(boxWorld, &bodyDef);
+		b2CreatePolygonShape(left, &shapeDef, &box);
+
+		bodyDef.position = {WIN_WIDTH/BOX_SCALE +5, WIN_HEIGHT/2.0f/BOX_SCALE};
+		b2BodyId right = b2CreateBody(boxWorld, &bodyDef);
+		b2CreatePolygonShape(right, &shapeDef, &box);
+	}
+
+	void AlleyCat::boxSystem(float deltaTime)
+	{
+		static const Mask mask = MaskBuilder()
+		.set<Transform>()
+		.set<Collider>()
+		.build();
+
+		// Advance Box2D physics
+		b2World_Step(boxWorld, deltaTime, 8);
+
+		for (ent_type e{0}; e.id <= World::maxId().id; ++e.id) {
+			if (World::mask(e).test(mask)) {
+				const auto& col = World::getComponent<Collider>(e);
+				auto& t = World::getComponent<Transform>(e);
+
+				b2Transform boxTransform = b2Body_GetTransform(col.body);
+				t.position.x = boxTransform.p.x * BOX_SCALE;
+				t.position.y = boxTransform.p.y * BOX_SCALE;
+				t.angle = b2Rot_GetAngle(boxTransform.q); // (optional rotation)
+			}
+		}
+	}
+
+	void AlleyCat::inputSystem()
+	{
+		static const Mask mask = MaskBuilder()
+			.set<Intent>()
+			.build();
+
+		const bool* keys = SDL_GetKeyboardState(nullptr);
+
+		for (ent_type e{0}; e.id <= World::maxId().id; ++e.id) {
+			if (World::mask(e).test(mask)) {
+				auto& intent = World::getComponent<Intent>(e);
+				intent.left = keys[SDL_SCANCODE_LEFT];
+				intent.right = keys[SDL_SCANCODE_RIGHT];
+			}
+		}
+	}
+
+	void AlleyCat::moveSystem(float deltaTime)
+	{
+		static const Mask mask = MaskBuilder()
+	   .set<Intent>()
+	   .set<Collider>()
+	   .build();
+
+		for (ent_type e{0}; e.id <= World::maxId().id; ++e.id) {
+			if (World::mask(e).test(mask)) {
+				const auto& intent = World::getComponent<Intent>(e);
+				const auto& col = World::getComponent<Collider>(e);
+
+				b2Vec2 velocity = b2Body_GetLinearVelocity(col.body);
+				float speed = 7.0f;
+
+				velocity.x = 0;
+				if (intent.left) velocity.x = -speed;
+				if (intent.right) velocity.x = speed;
+
+				b2Body_SetLinearVelocity(col.body, velocity);
+			}
+		}
+	}
+
+	void AlleyCat::drawSystem()
+	{
+		SDL_RenderClear(ren);
+
+		static const Mask mask = MaskBuilder()
+			.set<Transform>()
+			.set<Drawable>()
+			.build();
+
+		for (ent_type e{0}; e.id <= World::maxId().id; ++e.id) {
+			if (World::mask(e).test(mask)) {
+				const auto& t = World::getComponent<Transform>(e);
+				const auto& d = World::getComponent<Drawable>(e);
+
+				SDL_FRect rect = {
+					t.position.x,
+					t.position.y,
+					d.size.x,
+					d.size.y
+				};
+
+				SDL_RenderTexture(ren, bgTex, &d.part, &rect);
+			}
+		}
+
+		SDL_RenderPresent(ren);
 	}
 
 	bool AlleyCat::valid() const
@@ -59,6 +208,9 @@ namespace AlleyCatGame
     	SDL_srand(time(nullptr));
 
 		prepareBoxWorld();
+		createWalls();
+		createBackgroundEntity();
+		createCatEntity();
 	}
 
 	AlleyCat::~AlleyCat()
@@ -71,18 +223,21 @@ namespace AlleyCatGame
     		SDL_DestroyRenderer(ren);
     	if (win != nullptr)
     		SDL_DestroyWindow(win);
+		if (bgTex)
+			SDL_DestroyTexture(bgTex);
 
     	SDL_Quit();
     }
 
 	void AlleyCat::run()
 	{
-		SDL_SetRenderDrawColor(ren, 0,0,0,255);
 		auto start = SDL_GetTicks();
+		float deltaTime = 0.0f;
 		bool quit = false;
 
 		while (!quit)
 		{
+
 			SDL_Event e;
 			while (SDL_PollEvent(&e))
 			{
@@ -91,12 +246,17 @@ namespace AlleyCatGame
 					quit = true;
 			}
 
-			SDL_RenderClear(ren);
-			SDL_RenderPresent(ren);
+			inputSystem();
+			moveSystem(deltaTime);
+			boxSystem(deltaTime);
+			drawSystem();
 
 			auto end = SDL_GetTicks();
+			deltaTime = (end - start) / 1000.0f;
+
 			if (end - start < GAME_FRAME)
 				SDL_Delay(GAME_FRAME - (end - start));
+			start = end;
 		}
 	}
 }
