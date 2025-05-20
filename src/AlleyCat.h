@@ -7,7 +7,7 @@ namespace AlleyCatGame {
 
     using Transform = struct { SDL_FPoint p; float angle; };
     using Drawable = struct { SDL_FRect part; SDL_FPoint size; };
-    using Intent = struct { bool left, right; };
+    using Intent = struct { bool left, right, up; };
     using Collider = struct { b2BodyId body; };
 
     class AlleyCat
@@ -27,7 +27,7 @@ namespace AlleyCatGame {
         void createWalls();
 
         void inputSystem();
-        void moveSystem(float deltaTime);
+        void moveSystem();
         void drawSystem();
         void boxSystem(float deltaTime);
 
@@ -44,6 +44,8 @@ namespace AlleyCatGame {
         static constexpr int    WIN_HEIGHT = 800;
         static constexpr int	FPS = 60;
         static constexpr float	GAME_FRAME = 1000.f/FPS;
-        static constexpr float  BOX_SCALE = 10.0f;
+        static constexpr float BOX_SCALE = 64.0f;  // 1 m = 64 px
+        static constexpr float DESIRED_PX_SPEED = 200.0f;
+        static constexpr float DESIRED_PX_JUMP  = 150.0f;
     };
 }
