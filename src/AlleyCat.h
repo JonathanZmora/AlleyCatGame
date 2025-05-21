@@ -57,8 +57,6 @@ namespace AlleyCatGame {
 
         };
         static constexpr size_t NumDefs = std::size(platformDefs);
-
-        b2BodyId catBody;
         std::vector<b2ShapeId> platformShapes;
         using ShowPlat = struct {
             b2BodyId   body  = {0};
@@ -80,7 +78,7 @@ namespace AlleyCatGame {
         static constexpr int    WIN_HEIGHT = 800;
         static constexpr int	FPS = 60;
         static constexpr float	GAME_FRAME = 1000.f/FPS;
-        static constexpr float BOX_SCALE = 64.0f;  // 1 m = 64 px
+        static constexpr float BOX_SCALE = 64.0f;
         static constexpr float DESIRED_PX_SPEED = 200.0f;
         static constexpr float DESIRED_PX_JUMP  = 200.0f;
         static constexpr SDL_FPoint platformCenters[] = {

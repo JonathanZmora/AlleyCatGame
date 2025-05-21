@@ -42,47 +42,27 @@ namespace AlleyCatGame
 		boxWorld = b2CreateWorld(&worldDef);
 	}
 
-	void AlleyCat::createBackgroundEntity()
-	{
-		auto e = Entity::create();
-		SDL_FRect full{0.0f, 0.0f, static_cast<float>(WIN_WIDTH), static_cast<float>(WIN_HEIGHT)};
-		e.addAll(
-			Transform{{0.0f, 0.0f}, 0.0f},
-			Drawable{full, {full.w, full.h}}
-		);
-	}
 
-		void AlleyCat::createPlatforms() {
-			// base shape-def: density/friction + sensor settings
-			b2ShapeDef sd = b2DefaultShapeDef();
-			sd.density              = 1.0f;
-			sd.material.friction    = 1.0f;
-			// sd.isSensor             = true;    // start as sensor
-			// sd.enableSensorEvents   = true;    // so we get Begin/End events
+	void AlleyCat::createPlatforms() {
+		b2ShapeDef sd = b2DefaultShapeDef();
+		sd.density              = 1.0f;
+		sd.material.friction    = 1.0f;
 
-			// 100px wide, 5px tall platforms:
-			constexpr float Wpx = 150.f, Hpx = 1.f;
-			float halfW = (Wpx * 0.5f) / BOX_SCALE;   // in meters
-			float halfH = (Hpx * 0.5f) / BOX_SCALE;
+		constexpr float Wpx = 150.f, Hpx = 1.f;
+		float halfW = (Wpx * 0.5f) / BOX_SCALE;
+		float halfH = (Hpx * 0.5f) / BOX_SCALE;
 
-			for (auto& c : platformCenters) {
-				// position so top edge sits at c.y
-				float bodyCenterYPx = c.y + halfH * BOX_SCALE;
-				b2BodyDef bd = b2DefaultBodyDef();
-				bd.type     = b2_staticBody;
-				bd.position = { c.x / BOX_SCALE, bodyCenterYPx / BOX_SCALE };
-				b2BodyId body = b2CreateBody(boxWorld, &bd);
-
-
-				// make the box shape
-				b2Polygon plat = b2MakeBox(halfW, halfH);
-
-				// create the sensor shape and stash its ID
-				b2ShapeId shapeId = b2CreatePolygonShape(body, &sd, &plat);
-				platformShapes.push_back(shapeId);
-			}
+		for (auto& c : platformCenters) {
+			float bodyCenterYPx = c.y + halfH * BOX_SCALE;
+			b2BodyDef bd = b2DefaultBodyDef();
+			bd.type     = b2_staticBody;
+			bd.position = { c.x / BOX_SCALE, bodyCenterYPx / BOX_SCALE };
+			b2BodyId body = b2CreateBody(boxWorld, &bd);
+			b2Polygon plat = b2MakeBox(halfW, halfH);
+			b2ShapeId shapeId = b2CreatePolygonShape(body, &sd, &plat);
+			platformShapes.push_back(shapeId);
 		}
-
+	}
 
 	void AlleyCat::createCatEntity() {
 		// Box2D body
@@ -90,19 +70,15 @@ namespace AlleyCatGame
 		bd.type = b2_dynamicBody;
 		bd.position = {10.0f/BOX_SCALE, WIN_HEIGHT / BOX_SCALE - 1.0f};
 		auto body = b2CreateBody(boxWorld, &bd);
-		catBody = body;
 		b2ShapeDef sd = b2DefaultShapeDef(); sd.density=1; sd.material.friction=0.3f;
 		SDL_FPoint size{64, 64};
-		// half-extents in meters:
-		float halfW = (size.x * 0.5f) / BOX_SCALE;  // 32px → 3.2 m
-		float halfH = (size.y * 0.5f) / BOX_SCALE;  // 32px → 3.2 m
+		float halfW = (size.x * 0.5f) / BOX_SCALE;
+		float halfH = (size.y * 0.5f) / BOX_SCALE;
 
 		b2Polygon box = b2MakeBox(halfW, halfH);
 		b2CreatePolygonShape(body, &sd, &box);
 
-		// ECS entity
 		Entity cat = Entity::create();
-		// first frame of sprite sheet
 		SDL_FRect part{6, 44, 26, 20};
 
 		SDL_FPoint pos{WIN_WIDTH/2.f - size.x/2.f, WIN_HEIGHT/2.f - size.y/2.f};
@@ -317,7 +293,7 @@ namespace AlleyCatGame
 
 		prepareBoxWorld();
 		createWalls();
-		createBackgroundEntity();
+		//createBackgroundEntity();
 		createPlatforms();
 		createCatEntity();
 	}
