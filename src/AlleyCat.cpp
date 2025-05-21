@@ -52,28 +52,37 @@ namespace AlleyCatGame
 		);
 	}
 
-	void AlleyCat::createCanPlatforms() {
-		b2ShapeDef sd = b2DefaultShapeDef();
-		sd.density           = 1.0f;
-		sd.material.friction = 1.0f;
+		void AlleyCat::createPlatforms() {
+			// base shape-def: density/friction + sensor settings
+			b2ShapeDef sd = b2DefaultShapeDef();
+			sd.density              = 1.0f;
+			sd.material.friction    = 1.0f;
+			// sd.isSensor             = true;    // start as sensor
+			// sd.enableSensorEvents   = true;    // so we get Begin/End events
 
-		// 60px wide, 10px tall platforms:
-		constexpr float Wpx = 100.f, Hpx = 5.f;
-		float halfW = (Wpx * 0.5f) / BOX_SCALE;   // in meters
-		float halfH = (Hpx * 0.5f) / BOX_SCALE;
+			// 100px wide, 5px tall platforms:
+			constexpr float Wpx = 150.f, Hpx = 1.f;
+			float halfW = (Wpx * 0.5f) / BOX_SCALE;   // in meters
+			float halfH = (Hpx * 0.5f) / BOX_SCALE;
 
-		for (auto& c : canCenters) {
-			// Place the *center* of the body so that its top edge = c.y
-			float bodyCenterYPx = c.y + halfH * BOX_SCALE;
-			b2BodyDef bd = b2DefaultBodyDef();
-			bd.type     = b2_staticBody;
-			bd.position = { c.x/BOX_SCALE, bodyCenterYPx/BOX_SCALE };
-			b2BodyId body = b2CreateBody(boxWorld, &bd);
+			for (auto& c : platformCenters) {
+				// position so top edge sits at c.y
+				float bodyCenterYPx = c.y + halfH * BOX_SCALE;
+				b2BodyDef bd = b2DefaultBodyDef();
+				bd.type     = b2_staticBody;
+				bd.position = { c.x / BOX_SCALE, bodyCenterYPx / BOX_SCALE };
+				b2BodyId body = b2CreateBody(boxWorld, &bd);
 
-			b2Polygon plat = b2MakeBox(halfW, halfH);
-			b2CreatePolygonShape(body, &sd, &plat);
+
+				// make the box shape
+				b2Polygon plat = b2MakeBox(halfW, halfH);
+
+				// create the sensor shape and stash its ID
+				b2ShapeId shapeId = b2CreatePolygonShape(body, &sd, &plat);
+				platformShapes.push_back(shapeId);
+			}
 		}
-	}
+
 
 	void AlleyCat::createCatEntity() {
 		// Box2D body
@@ -81,6 +90,7 @@ namespace AlleyCatGame
 		bd.type = b2_dynamicBody;
 		bd.position = {10.0f/BOX_SCALE, WIN_HEIGHT / BOX_SCALE - 1.0f};
 		auto body = b2CreateBody(boxWorld, &bd);
+		catBody = body;
 		b2ShapeDef sd = b2DefaultShapeDef(); sd.density=1; sd.material.friction=0.3f;
 		SDL_FPoint size{64, 64};
 		// half-extents in meters:
@@ -144,7 +154,6 @@ namespace AlleyCatGame
 			if (World::mask(e).test(mask)) {
 				const auto& col = World::getComponent<Collider>(e);
 				auto& t = World::getComponent<Transform>(e);
-
 				b2Transform boxTransform = b2Body_GetTransform(col.body);
 				t.p.x = boxTransform.p.x * BOX_SCALE;
 				t.p.y = boxTransform.p.y * BOX_SCALE;
@@ -200,12 +209,78 @@ namespace AlleyCatGame
 			}
 		}
 	}
+// void AlleyCat::platformsSystem()
+// {
+//
+//     float catY = 0.f;
+// 	std::cout<< "catY: " << catY << std::endl;
+//     static const Mask catMask = MaskBuilder()
+//         .set<Intent>().set<Collider>().set<Transform>().set<Drawable>().build();
+//     for (ent_type e{0}; e.id <= World::maxId().id; ++e.id) {
+//
+//         if (!World::mask(e).test(catMask)) continue;
+//     	std::cout << "there is entity in platformSystem loop with id:" << e.id <<std::endl;
+//         catY = World::getComponent<Transform>(e).p.y;
+//         break;
+//     }
+//     for (size_t i = 0; i < NumDefs; ++i) {
+//         auto& slot = spawnedPlatforms[i];
+//         const auto& def = platformDefs[i];
+//
+//         bool shouldExist = (catY < def.y);
+//     	std::cout << "catY: " << catY << " def.y: " << def.y <<"platform should exists? : "<<shouldExist  << std::endl;
+//         bool doesExist   = (slot.ent.id != 0);
+//
+//         if (shouldExist && !doesExist) {
+//         	std::cout<<"creating platform" << std::endl;
+//             float halfW = (def.w * .5f) / BOX_SCALE;
+//         	std::cout<<"halfW: " << halfW << std::endl;
+//             float halfH = (def.h * .5f) / BOX_SCALE;
+//         	std::cout<<"halfH: " << halfH << std::endl;
+//             float cy    = def.y + halfH * BOX_SCALE;
+//         	std::cout<<"cy: " << cy << std::endl;
+//
+//             b2BodyDef bd = b2DefaultBodyDef();
+//             bd.type     = b2_staticBody;
+//             bd.position = { def.x/BOX_SCALE, cy/BOX_SCALE };
+//             slot.body   = b2CreateBody(boxWorld, &bd);
+// 			std::cout<<"created platform" << std::endl;
+//             b2ShapeDef sd = b2DefaultShapeDef();
+//             sd.density           = 1.0f;
+//             sd.material.friction = 1.0f;
+//             b2Polygon plat = b2MakeBox(halfW, halfH);
+//             b2CreatePolygonShape(slot.body, &sd, &plat);
+//         	std::cout<<"created polygon" << std::endl;
+//
+//             auto ent = Entity::create();
+//             ent.addAll(
+//               Transform{{def.x-def.w*.5f,def.y-def.h*.5f},0.f},
+//               Platform{def.w,def.h}
+//             );
+//
+//         	std::cout<<"created platform entity" << std::endl;
+//             // link body→entity so we can find it later
+//             b2Body_SetUserData(slot.body, new ent_type{ent.entity()});
+//
+//         }
+//         else if (!shouldExist && doesExist) {
+//             b2BodyId b = slot.body;
+//             auto *ePtr = static_cast<ent_type*>(b2Body_GetUserData(b));
+//             if (ePtr) {
+//                 World::destroyEntity(*ePtr);
+//                 delete ePtr;
+//             }
+//         	b2DestroyBody(b);
+//             slot = {};
+//         }
+//     }
+// }
+
 	void AlleyCat::drawSystem() {
 		// Draw background
 		SDL_RenderClear(ren);
 		SDL_RenderTexture(ren, bgTex, nullptr, nullptr);
 
-		// Draw all physics-driven entities (cat, etc.)
 		static const Mask entityMask = MaskBuilder()
 			.set<Transform>()
 			.set<Drawable>()
@@ -243,7 +318,7 @@ namespace AlleyCatGame
 		prepareBoxWorld();
 		createWalls();
 		createBackgroundEntity();
-		createCanPlatforms();
+		createPlatforms();
 		createCatEntity();
 	}
 
@@ -281,8 +356,10 @@ namespace AlleyCatGame
 			}
 
 			inputSystem();
+
 			moveSystem();
 			boxSystem(deltaTime);
+			//platformsSystem();
 			drawSystem();
 
 			auto end = SDL_GetTicks();

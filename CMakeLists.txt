@@ -62,6 +62,8 @@ set(BOX2D_VALIDATE     OFF)
 set(BOX2D_UNIT_TESTS   OFF)
 set(BUILD_SHARED_LIBS  OFF)
 add_subdirectory(lib/box2d)
+target_include_directories(${PROJECT_NAME} PRIVATE
+        ${CMAKE_SOURCE_DIR}/lib/box2d/include)
 
 target_link_libraries(${PROJECT_NAME} PUBLIC box2d)
 
