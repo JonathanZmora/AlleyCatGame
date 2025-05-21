@@ -15,6 +15,7 @@ add_executable(${PROJECT_NAME}
         src/AlleyCat.h
         include/bagel.h
         include/bagel_cfg.h
+        include/components.h
 )
 
 # Include paths for headers

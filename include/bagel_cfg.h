@@ -1,7 +1,7 @@
 #pragma once
 
 constexpr Bagel Params{
-	.DynamicResize = false
+	.DynamicResize = true
 };
 
-//BAGEL_STORAGE(Position,PackedStorage)
+BAGEL_STORAGE(AlleyCatGame::Enemy, TaggedStorage)
